@@ -1,11 +1,63 @@
 import { Flex, Heading, Text } from "@chakra-ui/react"
-import react from "react"
+import dynamic from "next/dynamic"
+import react, { useState } from "react"
 import { DragDropContext } from "react-beautiful-dnd"
-import Column from "../src/Column"
+
+const Column = dynamic(() => import("../src/Column"), { ssr: false })
+
+const reorderColumnList = (sourceCol, startIndex, endIndex) => {
+  const newTaskIds = Array.from(sourceCol.taskIds)
+  const [removed] = newTaskIds.splice(startIndex, 1)
+  newTaskIds.splice(endIndex, 0, removed)
+
+  const newColumn = {
+    ...sourceCol,
+    taskIds: newTaskIds,
+  }
+
+  return newColumn
+}
 
 export default function Home() {
+  const [state, setState] = useState(initialData)
+
   const onDragEnd = (result) => {
     const { destination, source } = result
+
+    // if user tries to drop in an unknown destination
+    if (!destination) return
+
+    // if the user drag and drop back in same position
+    if (
+      destination.droppableId === source.droppableId &&
+      destination.index === source.index
+    ) {
+      return
+    }
+
+    // if the user drop within the same column but in a diffrent position
+    const sourceCol = state.columns[source.droppableId]
+    const destinationCol = state.columns[destination.droppableId]
+
+    if (sourceCol.id === destinationCol.id) {
+      const newColumn = reorderColumnList(
+        sourceCol,
+        source.index,
+        destination.index
+      )
+
+      const newState = {
+        ...state,
+        columns: {
+          ...state.columns,
+          [newColumn.id]: newColumn,
+        },
+      }
+      setState(newState)
+      return
+    }
+
+    // if the user moves from one column to another
   }
 
   return (
@@ -27,9 +79,12 @@ export default function Home() {
           </Text>
         </Flex>
         <Flex justify="space-between" px="4rem">
-          <Column />
-          <Column />
-          <Column />
+          {state.columnOrder.map((columnId) => {
+            const column = state.columns[columnId]
+            const tasks = column.taskIds.map((taskId) => state.tasks[taskId])
+
+            return <Column key={column.id} column={column} tasks={tasks} />
+          })}
         </Flex>
       </Flex>
     </DragDropContext>
@@ -56,7 +111,7 @@ const initialData = {
       title: "IN-PROGRESS",
       taskIds: [],
     },
-    "column-3 ": {
+    "column-3": {
       id: "column-3",
       title: "COMPLETED",
       taskIds: [],
